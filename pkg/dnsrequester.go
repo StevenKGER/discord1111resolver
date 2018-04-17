@@ -5,6 +5,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/idna"
 	"strconv"
 	"strings"
 )
@@ -23,6 +24,18 @@ var dNSResponseCodeMessages = map[int]string{
 }
 
 func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.MessageEmbed, dNSMessageType uint16, dNSMessageTypeString string, domain string) (ok bool) {
+	var err error
+	// encode domain name using punycode
+	domain, err = idna.Punycode.ToASCII(domain)
+	if err != nil {
+		logrus.WithError(err).WithField("domain", domain).Warn("could not use punycode to encode domain name")
+		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
+			Name:   "Unknown error while encoding the domain name using punycode:",
+			Value:  strconv.Quote(err.Error()),
+			Inline: true,
+		}}
+		return
+	}
 	// create new message instance from the parameter data
 	message := &dns.Msg{
 		Question: []dns.Question{{
